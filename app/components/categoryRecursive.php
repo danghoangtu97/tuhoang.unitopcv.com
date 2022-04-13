@@ -23,6 +23,17 @@ class categoryRecursive
         return $this->html;
     }
 
+    function categorySearch($parentId = 0, $text = '')  
+    {
+        $data = category::where('parent_id', $parentId)->get();
+        foreach ($data as $dataItem) {
+            $this->html .= "<option value='" . $dataItem['slug'] . "'>" . $text . $dataItem['name'] . "</option>";
+
+            $this->categorySearch($dataItem->id, $text . '--');
+        }
+        return $this->html;
+    }
+
     function categoryRecursiveEdit($parentIdEdit, $parentId = 0, $text = '')
     {
         $data = category::where('parent_id', $parentId)->get();

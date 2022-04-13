@@ -20,9 +20,25 @@ class adminPostController extends Controller
         $this->changeSlug = $changeSlug;
         $this->storageImages = $storageImages;
     }
-    function index()
+    function index(Request $request)
     {
-        $posts = post::simplePaginate(5);
+        // C:\xampp\htdocs\tuhoangcv\storage\app\public\photos\1\sản phẩm\điện thoại\Điện thoại iPhone 12 64GB\iphone-12-18.jpg
+        if($request['keyword']){
+            $keyword = '';
+            $keyword = $request['keyword'];
+            $posts = post::where('name', 'LIKE', "%{$keyword}%")->simplePaginate(4);
+        } else {
+            $posts = post::simplePaginate(5);
+        }
+
+       
+        if($request->category){
+            $category = $request->category;
+            $posts = post::where('category', $category)->simplePaginate(6);
+        } else {
+            $posts = post::simplePaginate(5);
+        }
+        
         return view('admin.post.index', compact('posts'));
     }
 

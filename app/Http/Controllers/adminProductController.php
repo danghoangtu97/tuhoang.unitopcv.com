@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Log;
 
 // use App\Traits\storageImageTrait;
 use App\components\categoryRecursive;
+use App\components\changeSlug;
+use App\components\listProduct;
 use App\Http\Requests\storeProductRequest;
 use App\Models\product;
 use App\Models\category;
@@ -22,18 +24,38 @@ class adminProductController extends Controller
     private $storageImages;
     private $product;
     private $category;
-    function __construct(categoryRecursive $categoryRecursive, product $product, category $category, storageImages $storageImages)
+    private $changeSlug;
+    private $listProduct;
+    function __construct(categoryRecursive $categoryRecursive, product $product, category $category, storageImages $storageImages, changeSlug $changeSlug, listProduct $listProduct)
     {
         $this->categoryRecursive = $categoryRecursive;
         $this->product = $product;
         $this->storageImages = $storageImages;
         $this->category = $category;
-       
+        $this->changeSlug = $changeSlug;
+        $this->listProduct = $listProduct;
     }
-    function index()
+    function index(Request $request)
     {
-        $products = $this->product->simplePaginate(5);
-        return view('admin.product.index', compact('products'));
+        $keyword = '';
+        if ($request['keyword']) {
+            $keyword = $request['keyword'];
+            $products = product::where('name', 'LIKE', "%{$keyword}%")->simplePaginate(5);
+        } else {
+            $products = $this->product->simplePaginate(5);
+        }
+
+        $slug = '';
+        if($request['slug']){
+            $slug = $request['slug'];
+            $products = $this->listProduct->listProductSearch($slug);
+        } else {
+            $products = $this->product->simplePaginate(5);
+        }
+
+        $htmlOption = $this->categoryRecursive->categorySearch();
+
+        return view('admin.product.index', compact('products', 'htmlOption'));
     }
 
     function create()
@@ -47,6 +69,7 @@ class adminProductController extends Controller
         try {
             DB::beginTransaction();
             $child_category = $this->category->where('id', $request->category_id)->first();
+            $slug = $this->changeSlug->seoUrl($child_category->name);
             if ($child_category->parent_id != 0) {
                 $parent_category = $this->category->where('id', $child_category->parent_id)->first();
             } else {
@@ -59,7 +82,8 @@ class adminProductController extends Controller
                 'content' => $request->contents,
                 'category_id' => $request->category_id,
                 'user_id' => auth()->id(),
-                'parent_category' => $parent_category->id
+                'parent_category' => $parent_category->id,
+                'slug' => $slug,
             ];
 
             $dataFeatureImageUpload = $this->storageImages->StorageImageUpdate($request, 'feature_image_path', 'product');
@@ -95,19 +119,23 @@ class adminProductController extends Controller
     {
         $product = $this->product->find($id);
         $htmlOption = $this->categoryRecursive->categoryRecursiveEdit($product->category_id);
+
         return view('admin.product.edit', compact('product', 'htmlOption'));
     }
 
     function update($id, Request $request)
     {
-
         try {
             DB::beginTransaction();
+            $category_name = category::find($request->category_id);
+            $slug = $this->changeSlug->seoUrl($category_name->slug);
+
             $dataProductUpdate = [
                 'name' => $request->name,
                 'price' => $request->price,
                 'content' => $request->contents,
                 'category_id' => $request->category_id,
+                'slug' => $slug,
                 'user_id' => auth()->id(),
             ];
 
@@ -142,10 +170,10 @@ class adminProductController extends Controller
         }
     }
 
-    function delete($id) 
+    function delete($id)
     {
         try {
-           $this->product->find($id)->delete();
+            $this->product->find($id)->delete();
             return response()->json([
                 'code' => 200,
                 'message' => 'success'
@@ -157,6 +185,5 @@ class adminProductController extends Controller
                 'message' => 'fail'
             ], 500);
         }
-        
     }
 }
